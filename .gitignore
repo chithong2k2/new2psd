@@ -1,0 +1,30 @@
+﻿# Dependencies
+node_modules/
+frontend/node_modules/
+server/node_modules/
+
+# Production builds
+frontend/dist/
+dist/
+
+# Project runtime data (uploaded PSDs, renders, temp images)
+server/data/
+data/
+uploads/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Editor & OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

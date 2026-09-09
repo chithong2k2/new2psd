@@ -1,0 +1,28 @@
+{
+  "name": "news2psd-server",
+  "version": "1.0.0",
+  "description": "News2PSD Backend API",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
+  },
+  "dependencies": {
+    "@fontsource/noto-sans": "^5.3.0",
+    "@napi-rs/canvas": "^1.0.8",
+    "ag-psd": "^31.0.2",
+    "axios": "^1.7.7",
+    "cheerio": "^1.0.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "form-data": "^4.0.0",
+    "google-news-url-decoder": "^1.2.2",
+    "multer": "^2.0.0",
+    "sharp": "^0.33.5",
+    "uuid": "^11.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7"
+  }
+}
