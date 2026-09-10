@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Download, ImageIcon, Loader2, Move } from 'lucide-react'
+import { Download, ImageIcon, Loader2, Move, Maximize2, Sparkles } from 'lucide-react'
 import type { CaptionStyle, ImageSlot, LayerBounds, LayoutId } from '../types'
 
 interface DragPreviewProps {
@@ -16,6 +16,7 @@ interface DragPreviewProps {
   psdHeight: number
   captionStyle: CaptionStyle
   onCaptionMove: (x: number, y: number) => void
+  onCaptionChange?: (patch: Partial<CaptionStyle>) => void
 }
 
 export function DragPreview({
@@ -32,11 +33,25 @@ export function DragPreview({
   psdHeight,
   captionStyle,
   onCaptionMove,
+  onCaptionChange,
 }: DragPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const textMeasureRef = useRef<HTMLDivElement>(null)
   const [displayScale, setDisplayScale] = useState(1)
-  const [isDraggingCaption, setIsDraggingCaption] = useState(false)
-  const captionDrag = useRef<{ mx: number; my: number; cx: number; cy: number } | null>(null)
+
+  // Drag modes: move box OR resize from one of 8 Canva handles
+  type DragMode = 'move' | 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw' | null
+  const [dragMode, setDragMode] = useState<DragMode>(null)
+  const dragStart = useRef<{
+    mx: number
+    my: number
+    x: number
+    y: number
+    w: number
+    h: number
+  } | null>(null)
+
+  const [isOverflowing, setIsOverflowing] = useState(false)
 
   // Compute display scale: preview client width / PSD width
   useEffect(() => {
@@ -48,38 +63,130 @@ export function DragPreview({
     return () => obs.disconnect()
   }, [psdWidth])
 
+  // Measure text overflow whenever text, fontSize, dimensions change
+  useEffect(() => {
+    const el = textMeasureRef.current
+    if (!el) return
+    const overflow = el.scrollHeight > el.clientHeight + 2
+    setIsOverflowing(overflow)
+  }, [captionStyle.text, captionStyle.fontSize, captionStyle.width, captionStyle.height, displayScale])
+
   // Real-time CSS coordinates & styling for Caption
   const capStyle = {
     left: captionStyle.x * displayScale,
     top: captionStyle.y * displayScale,
-    width: captionStyle.width * displayScale,
-    height: captionStyle.height * displayScale,
+    width: (captionStyle.width || 400) * displayScale,
+    height: (captionStyle.height || 100) * displayScale,
   }
 
-  const handleCaptionMouseDown = (e: React.MouseEvent) => {
+  // Handle start dragging for moving or resizing handles
+  const handleStartDrag = (e: React.MouseEvent, mode: DragMode) => {
     e.preventDefault()
-    setIsDraggingCaption(true)
-    captionDrag.current = { mx: e.clientX, my: e.clientY, cx: captionStyle.x, cy: captionStyle.y }
+    e.stopPropagation()
+    setDragMode(mode)
+    dragStart.current = {
+      mx: e.clientX,
+      my: e.clientY,
+      x: captionStyle.x,
+      y: captionStyle.y,
+      w: captionStyle.width || 400,
+      h: captionStyle.height || 100,
+    }
   }
 
   useEffect(() => {
-    if (!isDraggingCaption) return
+    if (!dragMode) return
     const onMove = (e: MouseEvent) => {
-      if (!captionDrag.current || !displayScale) return
-      const dx = (e.clientX - captionDrag.current.mx) / displayScale
-      const dy = (e.clientY - captionDrag.current.my) / displayScale
-      const nx = Math.max(0, Math.min(psdWidth - captionStyle.width, captionDrag.current.cx + dx))
-      const ny = Math.max(0, Math.min(psdHeight - captionStyle.height, captionDrag.current.cy + dy))
-      onCaptionMove(Math.round(nx), Math.round(ny))
+      if (!dragStart.current || !displayScale) return
+      const dx = (e.clientX - dragStart.current.mx) / displayScale
+      const dy = (e.clientY - dragStart.current.my) / displayScale
+
+      const minW = 120
+      const minH = 50
+      let nx = dragStart.current.x
+      let ny = dragStart.current.y
+      let nw = dragStart.current.w
+      let nh = dragStart.current.h
+
+      if (dragMode === 'move') {
+        nx = Math.max(0, Math.min(psdWidth - nw, dragStart.current.x + dx))
+        ny = Math.max(0, Math.min(psdHeight - nh, dragStart.current.y + dy))
+        if (onCaptionChange) {
+          onCaptionChange({ x: Math.round(nx), y: Math.round(ny) })
+        } else {
+          onCaptionMove(Math.round(nx), Math.round(ny))
+        }
+        return
+      }
+
+      // Horizontal resizing
+      if (dragMode.includes('e')) {
+        nw = Math.max(minW, Math.min(psdWidth - nx, dragStart.current.w + dx))
+      } else if (dragMode.includes('w')) {
+        const potentialW = dragStart.current.w - dx
+        if (potentialW >= minW && dragStart.current.x + dx >= 0) {
+          nw = potentialW
+          nx = dragStart.current.x + dx
+        }
+      }
+
+      // Vertical resizing
+      if (dragMode.includes('s')) {
+        nh = Math.max(minH, Math.min(psdHeight - ny, dragStart.current.h + dy))
+      } else if (dragMode.includes('n')) {
+        const potentialH = dragStart.current.h - dy
+        if (potentialH >= minH && dragStart.current.y + dy >= 0) {
+          nh = potentialH
+          ny = dragStart.current.y + dy
+        }
+      }
+
+      if (onCaptionChange) {
+        onCaptionChange({
+          x: Math.round(nx),
+          y: Math.round(ny),
+          width: Math.round(nw),
+          height: Math.round(nh),
+        })
+      }
     }
-    const onUp = () => setIsDraggingCaption(false)
+
+    const onUp = () => setDragMode(null)
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
     return () => {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
     }
-  }, [isDraggingCaption, displayScale, psdWidth, psdHeight, captionStyle.width, captionStyle.height, onCaptionMove])
+  }, [dragMode, displayScale, psdWidth, psdHeight, onCaptionMove, onCaptionChange])
+
+  // Auto-expand height so text is NEVER clipped
+  const handleAutoExpandHeight = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    const el = textMeasureRef.current
+    if (!el || !displayScale || !onCaptionChange) return
+    const neededH = Math.round(el.scrollHeight / displayScale) + 24
+    onCaptionChange({ height: Math.max(neededH, (captionStyle.height || 100)) })
+  }
+
+  // Auto-fit font size to comfortably fit inside the current box
+  const handleAutoFitFontSize = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    const el = textMeasureRef.current
+    if (!el || !onCaptionChange) return
+    let curSize = captionStyle.fontSize || 48
+    if (el.scrollHeight > el.clientHeight && curSize > 16) {
+      const ratio = el.clientHeight / el.scrollHeight
+      const newSize = Math.max(16, Math.floor(curSize * ratio * 0.94))
+      onCaptionChange({ fontSize: newSize })
+    }
+  }
 
   const aspectRatio = psdWidth && psdHeight ? `${psdWidth} / ${psdHeight}` : '1 / 1'
 
@@ -203,22 +310,27 @@ export function DragPreview({
           </div>
         )}
 
-        {/* ── LAYER 4: Real-time Interactive Caption Frame (NEWS_CAPTION layer) ── */}
+        {/* ── LAYER 4: Real-time Interactive Caption Frame (Canva / Photoshop style) ── */}
         {psdWidth > 0 && (bgImageSrc || hasImages || templateBgPng) && (
           <div
-            onMouseDown={handleCaptionMouseDown}
+            onMouseDown={(e) => handleStartDrag(e, 'move')}
             style={{
               ...capStyle,
               backgroundColor: captionStyle.backgroundColor || 'transparent',
             }}
-            className={`absolute border-2 rounded transition-shadow z-30 overflow-hidden ${
-              isDraggingCaption
-                ? 'border-yellow-400 bg-yellow-400/10 cursor-grabbing ring-2 ring-yellow-400/40 shadow-xl'
+            className={`absolute border-2 rounded transition-shadow z-30 ${
+              dragMode === 'move'
+                ? 'border-blue-500 bg-blue-500/10 cursor-grabbing ring-2 ring-blue-400/40 shadow-2xl'
+                : dragMode
+                ? 'border-blue-500 bg-blue-500/5 ring-1 ring-blue-400/30 shadow-xl'
+                : isOverflowing
+                ? 'border-amber-400/90 bg-amber-400/5 hover:border-amber-400 hover:bg-amber-400/10 cursor-grab'
                 : 'border-dashed border-yellow-400/80 bg-yellow-400/5 cursor-grab hover:border-yellow-400 hover:bg-yellow-400/10'
             }`}
           >
             {/* Realtime Live Text Render */}
             <div
+              ref={textMeasureRef}
               style={{
                 fontFamily: `"${captionStyle.fontFamily}", Arial, sans-serif`,
                 fontSize: `${liveFontSize}px`,
@@ -236,10 +348,86 @@ export function DragPreview({
               {captionStyle.text || '(Nhập nội dung caption...)'}
             </div>
 
-            {/* Drag Handle Label */}
-            <div className="absolute -top-5 left-0 flex items-center gap-1 bg-yellow-500 text-black text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap font-semibold shadow">
-              <Move className="w-2.5 h-2.5" />
-              Caption (Kéo để dời)
+            {/* ── 8 CANVA / PHOTOSHOP RESIZE HANDLES ── */}
+            {/* Corner handles (NW, NE, SE, SW) */}
+            <div
+              onMouseDown={(e) => handleStartDrag(e, 'nw')}
+              className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm shadow cursor-nwse-resize z-40 hover:scale-125 transition-transform"
+              title="Kéo co giãn góc trên - trái"
+            />
+            <div
+              onMouseDown={(e) => handleStartDrag(e, 'ne')}
+              className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm shadow cursor-nesw-resize z-40 hover:scale-125 transition-transform"
+              title="Kéo co giãn góc trên - phải"
+            />
+            <div
+              onMouseDown={(e) => handleStartDrag(e, 'se')}
+              className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm shadow cursor-nwse-resize z-40 hover:scale-125 transition-transform"
+              title="Kéo co giãn góc dưới - phải"
+            />
+            <div
+              onMouseDown={(e) => handleStartDrag(e, 'sw')}
+              className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm shadow cursor-nesw-resize z-40 hover:scale-125 transition-transform"
+              title="Kéo co giãn góc dưới - trái"
+            />
+
+            {/* Edge handles (Canva signature pills): N, S, E, W */}
+            <div
+              onMouseDown={(e) => handleStartDrag(e, 'n')}
+              className="absolute -top-1 left-1/2 -translate-x-1/2 w-6 h-1.5 bg-white border-2 border-blue-500 rounded-full shadow cursor-ns-resize z-40 hover:scale-125 transition-transform"
+              title="Kéo dãn chiều cao trên"
+            />
+            <div
+              onMouseDown={(e) => handleStartDrag(e, 's')}
+              className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-6 h-1.5 bg-white border-2 border-blue-500 rounded-full shadow cursor-ns-resize z-40 hover:scale-125 transition-transform"
+              title="Kéo dãn chiều cao dưới"
+            />
+            <div
+              onMouseDown={(e) => handleStartDrag(e, 'w')}
+              className="absolute top-1/2 -left-1 -translate-y-1/2 w-1.5 h-6 bg-white border-2 border-blue-500 rounded-full shadow cursor-ew-resize z-40 hover:scale-125 transition-transform"
+              title="Kéo dãn chiều rộng trái"
+            />
+            <div
+              onMouseDown={(e) => handleStartDrag(e, 'e')}
+              className="absolute top-1/2 -right-1 -translate-y-1/2 w-1.5 h-6 bg-white border-2 border-blue-500 rounded-full shadow cursor-ew-resize z-40 hover:scale-125 transition-transform"
+              title="Kéo dãn chiều rộng phải"
+            />
+
+            {/* ── Canva-style Floating Toolbar on Top ── */}
+            <div className="absolute -top-7 left-0 flex items-center gap-1.5 pointer-events-auto z-40">
+              <div className="flex items-center gap-1 bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded font-bold whitespace-nowrap shadow-md">
+                <Move className="w-2.5 h-2.5" />
+                <span>Kéo dời / Co giãn</span>
+              </div>
+              <span className="bg-black/85 text-gray-300 text-[10px] px-1.5 py-0.5 rounded font-mono shadow">
+                {Math.round(captionStyle.width || 400)} × {Math.round(captionStyle.height || 100)}
+              </span>
+
+              {/* Overflow alerts & Quick Auto-fit tools */}
+              {isOverflowing && (
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={handleAutoExpandHeight}
+                  className="bg-amber-500 hover:bg-amber-400 text-black text-[10px] px-2 py-0.5 rounded font-bold flex items-center gap-1 shadow animate-pulse"
+                  title="Tự động kéo dài khung xuống để hiện đủ toàn bộ chữ"
+                >
+                  <Maximize2 className="w-2.5 h-2.5" />
+                  <span>↕ Mở rộng khung</span>
+                </button>
+              )}
+              {isOverflowing && (
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={handleAutoFitFontSize}
+                  className="bg-brand-600 hover:bg-brand-500 text-white text-[10px] px-2 py-0.5 rounded font-bold flex items-center gap-1 shadow"
+                  title="Tự động thu nhỏ cỡ chữ để vừa khít khung hiện tại"
+                >
+                  <Sparkles className="w-2.5 h-2.5" />
+                  <span>⚡ Co vừa chữ</span>
+                </button>
+              )}
             </div>
 
             {/* Coordinates tag */}

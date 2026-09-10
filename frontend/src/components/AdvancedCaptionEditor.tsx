@@ -151,6 +151,36 @@ export function AdvancedCaptionEditor({ value, onChange, disabled }: AdvancedCap
           className="w-full accent-brand-500"
         />
       </div>
+
+      {/* Box dimensions (Canva/Photoshop sizing) */}
+      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-800">
+        <div>
+          <label className="text-[11px] text-gray-500 font-medium block mb-1">Rộng khung (px)</label>
+          <input
+            type="number"
+            min={100}
+            max={3000}
+            step={10}
+            value={Math.round(value.width || 400)}
+            onChange={(e) => update({ width: Math.max(100, Number(e.target.value)) })}
+            className="input-field py-1.5 text-xs text-center w-full"
+            title="Kéo các điểm handle trên preview hoặc gõ số trực tiếp"
+          />
+        </div>
+        <div>
+          <label className="text-[11px] text-gray-500 font-medium block mb-1">Cao khung (px)</label>
+          <input
+            type="number"
+            min={40}
+            max={3000}
+            step={10}
+            value={Math.round(value.height || 100)}
+            onChange={(e) => update({ height: Math.max(40, Number(e.target.value)) })}
+            className="input-field py-1.5 text-xs text-center w-full"
+            title="Kéo các điểm handle trên preview hoặc gõ số trực tiếp"
+          />
+        </div>
+      </div>
     </div>
   )
 }

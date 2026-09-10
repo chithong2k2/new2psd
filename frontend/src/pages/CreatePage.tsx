@@ -128,10 +128,13 @@ export default function CreatePage() {
     } finally { setPreviewing(false) }
   }, [project, imageSlots, layout, caption])
 
-  // Caption drag: update instantly via React state / CSS with 0ms lag!
-  // No server request needed during drag because typography is live CSS.
+  // Caption drag & resize: update instantly via React state / CSS with 0ms lag!
   const handleCaptionMove = useCallback((x: number, y: number) => {
     setCaption((prev) => ({ ...prev, x, y }))
+  }, [])
+
+  const handleCaptionChange = useCallback((patch: Partial<CaptionStyle>) => {
+    setCaption((prev) => ({ ...prev, ...patch }))
   }, [])
 
   const steps: { key: Step; label: string; done: boolean }[] = [
@@ -326,6 +329,7 @@ export default function CreatePage() {
                 psdHeight={project?.psdHeight ?? 0}
                 captionStyle={caption}
                 onCaptionMove={handleCaptionMove}
+                onCaptionChange={handleCaptionChange}
               />
             </div>
           </div>
