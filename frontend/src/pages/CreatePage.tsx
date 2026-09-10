@@ -292,11 +292,23 @@ export default function CreatePage() {
                     projectId={project.id}
                     currentText={caption.text}
                     onApply={(sug) => {
-                      setCaption((prev) => ({
-                        ...prev,
-                        text: sug.fullText,
-                        bold: true,
-                      }))
+                      setCaption((prev) => {
+                        const tagText = sug.tag ? (sug.tag.endsWith(' ') ? sug.tag : `${sug.tag} `) : ''
+                        const bodyText = sug.text ? sug.text.trimStart() : ''
+                        const segments = sug.tag
+                          ? [
+                              { text: tagText, color: sug.tagColor || '#ef4444' },
+                              { text: bodyText, color: prev.color || '#ffffff' },
+                            ]
+                          : undefined
+
+                        return {
+                          ...prev,
+                          text: sug.fullText,
+                          segments,
+                          bold: true,
+                        }
+                      })
                     }}
                   />
                 )}

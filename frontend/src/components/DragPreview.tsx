@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Download, ImageIcon, Loader2, Move, Maximize2, Sparkles } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Download, ImageIcon, Loader2 } from 'lucide-react'
 import type { CaptionStyle, ImageSlot, LayerBounds, LayoutId } from '../types'
 
 interface DragPreviewProps {
@@ -160,34 +160,6 @@ export function DragPreview({
     }
   }, [dragMode, displayScale, psdWidth, psdHeight, onCaptionMove, onCaptionChange])
 
-  // Auto-expand height so text is NEVER clipped
-  const handleAutoExpandHeight = (e?: React.MouseEvent) => {
-    if (e) {
-      e.preventDefault()
-      e.stopPropagation()
-    }
-    const el = textMeasureRef.current
-    if (!el || !displayScale || !onCaptionChange) return
-    const neededH = Math.round(el.scrollHeight / displayScale) + 24
-    onCaptionChange({ height: Math.max(neededH, (captionStyle.height || 100)) })
-  }
-
-  // Auto-fit font size to comfortably fit inside the current box
-  const handleAutoFitFontSize = (e?: React.MouseEvent) => {
-    if (e) {
-      e.preventDefault()
-      e.stopPropagation()
-    }
-    const el = textMeasureRef.current
-    if (!el || !onCaptionChange) return
-    let curSize = captionStyle.fontSize || 48
-    if (el.scrollHeight > el.clientHeight && curSize > 16) {
-      const ratio = el.clientHeight / el.scrollHeight
-      const newSize = Math.max(16, Math.floor(curSize * ratio * 0.94))
-      onCaptionChange({ fontSize: newSize })
-    }
-  }
-
   const aspectRatio = psdWidth && psdHeight ? `${psdWidth} / ${psdHeight}` : '1 / 1'
 
   // Decide what image to show as fallback
@@ -345,7 +317,15 @@ export function DragPreview({
               }}
               className="w-full h-full pointer-events-none select-none overflow-hidden"
             >
-              {captionStyle.text || '(Nhập nội dung caption...)'}
+              {captionStyle.segments && captionStyle.segments.length > 0 ? (
+                captionStyle.segments.map((seg, idx) => (
+                  <span key={idx} style={{ color: seg.color || captionStyle.color }}>
+                    {seg.text}
+                  </span>
+                ))
+              ) : (
+                captionStyle.text || '(Nhập nội dung caption...)'
+              )}
             </div>
 
             {/* ── 8 CANVA / PHOTOSHOP RESIZE HANDLES ── */}
@@ -392,48 +372,6 @@ export function DragPreview({
               className="absolute top-1/2 -right-1 -translate-y-1/2 w-1.5 h-6 bg-white border-2 border-blue-500 rounded-full shadow cursor-ew-resize z-40 hover:scale-125 transition-transform"
               title="Kéo dãn chiều rộng phải"
             />
-
-            {/* ── Canva-style Floating Toolbar on Top ── */}
-            <div className="absolute -top-7 left-0 flex items-center gap-1.5 pointer-events-auto z-40">
-              <div className="flex items-center gap-1 bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded font-bold whitespace-nowrap shadow-md">
-                <Move className="w-2.5 h-2.5" />
-                <span>Kéo dời / Co giãn</span>
-              </div>
-              <span className="bg-black/85 text-gray-300 text-[10px] px-1.5 py-0.5 rounded font-mono shadow">
-                {Math.round(captionStyle.width || 400)} × {Math.round(captionStyle.height || 100)}
-              </span>
-
-              {/* Overflow alerts & Quick Auto-fit tools */}
-              {isOverflowing && (
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={handleAutoExpandHeight}
-                  className="bg-amber-500 hover:bg-amber-400 text-black text-[10px] px-2 py-0.5 rounded font-bold flex items-center gap-1 shadow animate-pulse"
-                  title="Tự động kéo dài khung xuống để hiện đủ toàn bộ chữ"
-                >
-                  <Maximize2 className="w-2.5 h-2.5" />
-                  <span>↕ Mở rộng khung</span>
-                </button>
-              )}
-              {isOverflowing && (
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={handleAutoFitFontSize}
-                  className="bg-brand-600 hover:bg-brand-500 text-white text-[10px] px-2 py-0.5 rounded font-bold flex items-center gap-1 shadow"
-                  title="Tự động thu nhỏ cỡ chữ để vừa khít khung hiện tại"
-                >
-                  <Sparkles className="w-2.5 h-2.5" />
-                  <span>⚡ Co vừa chữ</span>
-                </button>
-              )}
-            </div>
-
-            {/* Coordinates tag */}
-            <div className="absolute bottom-1 right-1 bg-black/75 text-white text-[9px] px-1 rounded pointer-events-none">
-              X: {captionStyle.x}, Y: {captionStyle.y}
-            </div>
           </div>
         )}
       </div>

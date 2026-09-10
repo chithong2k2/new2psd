@@ -57,6 +57,11 @@ export interface ImageSlot {
 }
 
 // ─── Caption style ────────────────────────────────────────────────────────────
+export interface CaptionSegment {
+  text: string
+  color?: string       // hex e.g. "#ef4444"
+}
+
 export interface CaptionStyle {
   text: string
   // position (PSD pixel coords)
@@ -72,6 +77,7 @@ export interface CaptionStyle {
   color: string        // hex e.g. "#000080"
   align: 'left' | 'center' | 'right'
   backgroundColor: string | null
+  segments?: CaptionSegment[] // multi-color text segments like Canva/Photoshop
 }
 
 export interface CaptionToneOption {

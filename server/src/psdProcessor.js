@@ -105,7 +105,7 @@ async function processPsd(psdBuffer, imageSlots, layout, captionStyle) {
 
   // Replace caption
   if (captionStyle) {
-    replaceCaptionText(captionLayer, captionStyle.text || '');
+    replaceCaptionText(captionLayer, captionStyle);
     await renderCaptionCanvas(captionLayer, captionStyle);
   }
 
@@ -244,15 +244,37 @@ async function sharpCoverWithFocus(buffer, targetW, targetH, focusX, focusY) {
 }
 
 // ─── Update text layer data ───────────────────────────────────────────────────
-function replaceCaptionText(layer, text) {
+function replaceCaptionText(layer, captionStyle) {
   if (!layer.text) return;
   const t = layer.text;
-  t.text = text;
-  if (t.styleRuns?.length) {
-    t.styleRuns = [{ length: text.length, style: t.styleRuns[0]?.style || {} }];
+  const fullText = captionStyle.text || '';
+  t.text = fullText;
+
+  const baseStyle = t.style || (t.styleRuns?.[0]?.style) || {};
+  const baseColor = captionStyle.color ? hexToRgb(captionStyle.color) : (baseStyle.fillColor || { r: 0, g: 0, b: 0 });
+  const fontSize = captionStyle.fontSize || baseStyle.fontSize || 36;
+
+  if (captionStyle.segments && captionStyle.segments.length > 0) {
+    const runs = [];
+    for (const seg of captionStyle.segments) {
+      if (!seg.text) continue;
+      const segColor = seg.color ? hexToRgb(seg.color) : baseColor;
+      runs.push({
+        length: seg.text.length,
+        style: {
+          ...baseStyle,
+          fontSize,
+          fillColor: segColor,
+        },
+      });
+    }
+    t.styleRuns = runs;
+  } else if (t.styleRuns?.length) {
+    t.styleRuns = [{ length: fullText.length, style: { ...baseStyle, fontSize, fillColor: baseColor } }];
   }
+
   if (t.paragraphRuns?.length) {
-    t.paragraphRuns = [{ length: text.length, style: t.paragraphRuns[0]?.style || {} }];
+    t.paragraphRuns = [{ length: fullText.length, style: t.paragraphRuns[0]?.style || {} }];
   }
 }
 
@@ -325,22 +347,98 @@ async function renderCaptionCanvas(layer, captionStyle) {
   const weight  = bold   ? 'bold'   : 'normal';
   const styleS  = italic ? 'italic' : 'normal';
   ctx.font         = `${styleS} ${weight} ${Math.round(fontSize)}px "${fontFamily}", Arial, sans-serif`;
-  ctx.fillStyle    = rgbaToHex(color);
-  ctx.textAlign    = align;
+  ctx.textAlign    = 'left';
   ctx.textBaseline = 'top';
 
-  const xPos       = align === 'right' ? w - 4 : align === 'center' ? w / 2 : 4;
-  const lineHeight = fontSize * 1.3;
-  const text       = captionStyle.text || layer.text?.text || '';
-  const lines      = wordWrap(ctx, text, w - 8);
+  const defaultHex = rgbaToHex(color);
+  const segments = (captionStyle.segments && captionStyle.segments.length > 0)
+    ? captionStyle.segments
+    : [{ text: captionStyle.text || layer.text?.text || '', color: defaultHex }];
 
+  renderMultiColorCaptionToCanvas(ctx, segments, w, h, fontSize, align, defaultHex);
+
+  layer.canvas = canvas;
+}
+
+function renderMultiColorCaptionToCanvas(ctx, segments, w, h, fontSize, align, defaultHexColor) {
+  const lineHeight = fontSize * 1.3;
+  const maxWidth = Math.max(10, w - 8);
+
+  // Tokenize segments by whitespace or newline
+  const tokens = [];
+  for (const seg of segments) {
+    const segText = seg.text || '';
+    const segTokens = segText.match(/(\S+\s*|\s+)/g) || [];
+    const segColor = seg.color || defaultHexColor;
+    for (const st of segTokens) {
+      tokens.push({
+        text: st,
+        color: segColor,
+        width: ctx.measureText(st).width,
+      });
+    }
+  }
+
+  // Wrap tokens into lines
+  const lines = [];
+  let curLine = [];
+  let curWidth = 0;
+
+  for (const tok of tokens) {
+    if (tok.text.includes('\n')) {
+      const parts = tok.text.split('\n');
+      for (let i = 0; i < parts.length; i++) {
+        if (i > 0) {
+          lines.push(curLine);
+          curLine = [];
+          curWidth = 0;
+        }
+        if (parts[i]) {
+          const subTok = { text: parts[i], color: tok.color, width: ctx.measureText(parts[i]).width };
+          if (curWidth + subTok.width <= maxWidth || curLine.length === 0) {
+            curLine.push(subTok);
+            curWidth += subTok.width;
+          } else {
+            lines.push(curLine);
+            curLine = [subTok];
+            curWidth = subTok.width;
+          }
+        }
+      }
+      continue;
+    }
+
+    if (curWidth + tok.width <= maxWidth || curLine.length === 0) {
+      curLine.push(tok);
+      curWidth += tok.width;
+    } else {
+      lines.push(curLine);
+      curLine = [tok];
+      curWidth = tok.width;
+    }
+  }
+  if (curLine.length > 0) lines.push(curLine);
+
+  // Render lines with respective alignments
   lines.forEach((line, i) => {
     const yPos = 4 + i * lineHeight;
     if (yPos + lineHeight > h + lineHeight) return;
-    ctx.fillText(line, xPos, yPos);
-  });
 
-  layer.canvas = canvas;
+    const totalW = line.reduce((acc, t) => acc + t.width, 0);
+    let curX = align === 'right'
+      ? Math.max(4, w - 4 - totalW)
+      : align === 'center'
+      ? Math.max(4, (w - totalW) / 2)
+      : 4;
+
+    for (const tok of line) {
+      ctx.fillStyle = tok.color || defaultHexColor;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText(tok.text, curX, yPos);
+      curX += tok.width;
+    }
+  });
 }
 
 // ─── Render preview PNG ───────────────────────────────────────────────────────
