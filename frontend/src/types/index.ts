@@ -74,6 +74,25 @@ export interface CaptionStyle {
   backgroundColor: string | null
 }
 
+export interface CaptionToneOption {
+  id: string
+  label: string
+  icon: string
+  description: string
+  tagColor: string
+}
+
+export interface CaptionSuggestion {
+  tag: string
+  text: string
+  fullText: string
+  wordCount: number
+  tone: string
+  toneLabel: string
+  tagColor: string
+  prefixColor: string
+}
+
 export const DEFAULT_CAPTION_STYLE: CaptionStyle = {
   text: '',
   x: 0, y: 0, width: 400, height: 100,

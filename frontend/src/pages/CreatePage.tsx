@@ -7,6 +7,7 @@ import { ArticleInput }           from '../components/ArticleInput'
 import { LayoutPicker }           from '../components/LayoutPicker'
 import { ImageSlotEditor }        from '../components/ImageSlotEditor'
 import { AdvancedCaptionEditor }  from '../components/AdvancedCaptionEditor'
+import { CaptionAiGenerator }      from '../components/CaptionAiGenerator'
 import { DragPreview }            from '../components/DragPreview'
 import { ErrorBanner }            from '../components/ErrorBanner'
 
@@ -283,6 +284,19 @@ export default function CreatePage() {
               <Section title="Caption (Tự động cập nhật)" step={4}
                 active={activeStep === 'caption'} done={!!preview}
                 onClick={() => setActiveStep('caption')}>
+                {project && (
+                  <CaptionAiGenerator
+                    projectId={project.id}
+                    currentText={caption.text}
+                    onApply={(sug) => {
+                      setCaption((prev) => ({
+                        ...prev,
+                        text: sug.fullText,
+                        bold: true,
+                      }))
+                    }}
+                  />
+                )}
                 <AdvancedCaptionEditor value={caption} onChange={setCaption} disabled={false} />
                 <div className="flex items-center gap-2 pt-1 text-xs text-yellow-400/90 font-medium">
                   <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />

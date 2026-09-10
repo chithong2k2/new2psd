@@ -10,6 +10,7 @@ const { createProject, getProject, updateProject } = require('../store');
 const { extractArticle } = require('../articleExtractor');
 const { inspectPsd, processPsd } = require('../psdProcessor');
 const { findRelatedNewsImages } = require('../relatedNewsCrawler');
+const { generateInImageCaptions, TONE_CONFIGS } = require('../captionGenerator');
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data', 'projects');
 
@@ -238,6 +239,44 @@ router.get('/:id/article', (req, res) => {
     if (!p.articleData) return res.status(404).json({ error: 'No article analyzed yet' });
     res.json(p.articleData);
   } catch (e) { res.status(404).json({ error: e.message }); }
+});
+
+// ─── POST /api/projects/:id/generate-captions ─────────────────────────────────
+// Body: { tone?: 'viral' | 'politics' | 'entertainment' | 'curiosity' | 'finance' | 'sports', customPrompt?: string }
+router.post('/:id/generate-captions', async (req, res) => {
+  try {
+    const project = getProject(req.params.id);
+    const { tone = 'viral', customPrompt = '' } = req.body;
+
+    const title = project.articleData?.title || 'Tin tức nóng hôm nay';
+    const description = project.articleData?.description || '';
+    const snippet = project.articleData?.snippet || '';
+
+    const suggestions = await generateInImageCaptions({
+      title,
+      description,
+      snippet,
+      tone,
+      customPrompt,
+    });
+
+    res.json({
+      success: true,
+      tone,
+      toneConfig: TONE_CONFIGS[tone] || TONE_CONFIGS.viral,
+      availableTones: Object.values(TONE_CONFIGS).map((t) => ({
+        id: t.id,
+        label: t.label,
+        icon: t.icon,
+        description: t.description,
+        tagColor: t.tagColor,
+      })),
+      suggestions,
+    });
+  } catch (e) {
+    console.error('Caption generation error:', e);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ─── POST /api/projects/:id/preview ──────────────────────────────────────────

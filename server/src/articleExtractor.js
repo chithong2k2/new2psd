@@ -24,14 +24,16 @@ async function extractArticle(url) {
   const baseUrl = new URL(url);
 
   const title = extractTitle($);
+  const description = extractDescription($);
+  const snippet = extractSnippet($, title);
   const source = extractSource($, baseUrl);
-  const entities = extractEntities(title);
+  const entities = extractEntities(title + ' ' + description);
   const images = extractImages($, url, baseUrl, source, title);
 
   // Mark first image as recommended
   if (images.length > 0) images[0].recommended = true;
 
-  return { title, source, url, entities, images, extractedAt: new Date().toISOString() };
+  return { title, description, snippet, source, url, entities, images, extractedAt: new Date().toISOString() };
 }
 
 function extractTitle($) {
@@ -41,6 +43,27 @@ function extractTitle($) {
     $('title').text() ||
     ''
   ).trim();
+}
+
+function extractDescription($) {
+  return (
+    $('meta[property="og:description"]').attr('content') ||
+    $('meta[name="twitter:description"]').attr('content') ||
+    $('meta[name="description"]').attr('content') ||
+    ''
+  ).trim();
+}
+
+function extractSnippet($, title = '') {
+  let snippet = '';
+  $('article p, .detail-content p, .article-body p, .content-detail p, main p, p').each((_, el) => {
+    if (snippet) return;
+    const text = $(el).text().trim();
+    if (text.length >= 40 && text !== title && !isAdOrJunk('', text)) {
+      snippet = text;
+    }
+  });
+  return snippet;
 }
 
 function extractSource($, baseUrl) {

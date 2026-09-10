@@ -47,6 +47,20 @@ export const searchRelatedNews = async (
   return data
 }
 
+export const generateCaptions = async (
+  id: string,
+  tone: string,
+  customPrompt?: string
+): Promise<{
+  success: boolean
+  tone: string
+  availableTones: any[]
+  suggestions: any[]
+}> => {
+  const { data } = await api.post(`/projects/${id}/generate-captions`, { tone, customPrompt })
+  return data
+}
+
 export const getArticle = async (id: string): Promise<ArticleData> => {
   const { data } = await api.get(`/projects/${id}/article`)
   return data
